@@ -1,0 +1,434 @@
+1. Escribir un trasformador que al recibir un parser, devuelve un nuevo parser que se comporta
+como el original pero que tambien acepta opcionalmente las cadenas que est´en entre par´entesis
+
+Parser a :: String -> [(a, String)]
+
+transformador :: Parser a -> Parser a
+transformador p = do char '(' 
+                     x <- transformador p
+                     char ')'
+                     return x
+                  <|> p 
+((hola))
+(hola)
+hola
+
+2. Escribir un trasformador de parsers withQuotes tal que, dado un parser p, el parser resultante
+acepte opcionalmente el mismo contenido encerrado entre comillas simples o dobles. Por ejemplo,
+el parser withQuotes (string "hola") debe aceptar tanto hola como ’hola’ y "hola".
+
+comilla :: Parser a -> Char -> Parser a
+comilla p c = do char c
+                 x <- p
+                 char c
+                 return x
+
+withQuotes :: Parser a -> Parser a
+withQuotes p = comilla p ''' <|> comilla p '"' <|> p
+
+withQuotes :: Parser a -> Parser a
+withQuotes p = do char '''
+                  x <- p
+                  char '''
+                  return x
+                <|> do char '"'
+                       y <- p
+                       char '"'
+                       return y
+                    <|> p 
+
+""hola""
+
+
+3. Definir un parser sepList que reciba un parser de elementos y una lista de parsers de separadores y que acepte listas donde los elementos 
+pueden estar separados por cualquiera de ellos.
+Por ejemplo, sepList int [char ’,’, char ’;’, string "o"] debe reconocer:
+ 1,2,3
+ 4;5;6
+ 7o8o9
+
+sepList :: Parser a -> [Parser a] -> Parser [a]
+sepList p xs = do x <- p
+            z <- many (do foldr (<|>) failure xs 
+                          y <- p
+                          return y)
+            return x : z
+
+
+sepList :: Parser a -> [Parser a] -> Parser [a]
+sepList p [] = failure 
+sepList p (x:xs) = aura p x <|> sepList p xs              
+
+aura :: Parser a -> Parser a -> Parser [a]
+aura p q = do x <- p
+            z <- many (do q 
+                          y <- p
+                          return y)
+            return x : z
+
+                    
+1 
+,2 
+,3 
+,4 
+,5 
+,6
+
+
+4-Definir un parser que reconozca tuplas anidadas de numeros enteros, como:
+(1, 2) ((3, 4),(5, 6)) (((1, 2), 3), 4)
+El parser debe construir una estructura de tipo:
+
+data Tuple = Single Int | Pair Tuple Tuple
+
+ouput : Pair (Single 1, Single 2)
+
+Tuple -> '(' Tuple ',' Tuple ')' | term
+term -> '(' elem ',' elem ')' 
+elem -> Int
+
+singleInt :: Parser Tuple
+singleInt = do char '('
+                x <- numero 
+                char ','
+                y <- numero 
+                char ')'
+                return (Pair (Single x) (Single y))
+        <|> do z <- numero 
+               return Single z
+
+pairTuple :: Parser Tuple
+pairTuple =  do char '('
+                x <- PairTuple
+                char ','
+                y <- PairTuple
+                char ')'
+                return (Pair x y)
+
+tuple :: -> Parser Tuple
+tuple = pairTuple <|> singleInt 
+                  
+(1, 2) -> 
+((3, 4),(5, 6)) 
+(((1, 2), 3), 4)
+
+
+
+parserTuple :: ParserTuple -> Tuple
+
+   
+
+
+5. Implementar un parser interval que reconozca intervalos de la forma:
+(a, b), [a, b), (a, b] o [a, b].
+y genere un valor de tipo:
+
+data Interval = Interval 
+{leftOpen :: Bool
+, rightOpen :: Bool
+, a :: Float
+, b :: Float }
+
+El parser debe interpretar los par´entesis y corchetes como indicadores de apertura y cierre de los
+extremos.
+
+parserInterval :: Parser Interval
+parserInterval = do char '(' 
+                    x <- Float
+                    char ','
+                    y <- Float
+                    char ')'
+                    return Interval (True, True, x, y)
+              <|> do char '['
+                     x <- Float
+                     char ','
+                     y <- Float
+                     char ')'
+                     return Interval (False, True, x, y)
+              <|> do char '('
+                     x <- Float
+                     char ','
+                     y <- Float
+                     char ']'
+                     return Interval (True, False, x, y)
+              <|> do char '['
+                     x <- Float
+                     char ','
+                     y <- Float
+                     char ']'
+                     return Interval (False, False, x, y)
+                     
+
+parserInutil :: Parser Bool
+parserInutil =  do char '(' 
+                   return True
+            <|> do char '['  
+                   return False
+
+parserInutil2 :: Parser Bool
+parserInutil2 =  do char ')' 
+                   return True
+             <|> do char ']'  
+                   return False
+
+parserInterval' :: Parser Interval
+parserInterval' = do p <- parserInutil
+                     x <- Float
+                     char ','
+                     y <- Float
+                     q <- parserInutil2
+                     return Interval (p, q, x, y)
+
+
+
+6. Escribir un parser para vectores linealmente espaciados, con la siguiente sintaxis: linspace (inicio, fin, n)
+ inicio y fin son las cotas para generar los valores del vector
+ n es un valor entero que determina la cantidad de valores pedidos.
+Ejemplo:linspace (1.0, 3.0, 6) = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0]
+
+(fin - inicio) / (n - 1) 
+
+data linspace = (Int, Int, Int)
+
+fuctionVectoriano :: Float -> Float -> Int -> [Float]
+fuctionVectoriano inicio fin n = let distancia = (fin - incio) / (n - 1)
+                                 in [inicio + distancia * FromIntegral (x) | x <- [0.. n - 1] ] 
+
+inicio + distacia * n 
+
+linspace :: Parser [Float]
+linspace = do string "linspace("
+              inicio <- numero
+              char ','
+              fin <- numero
+              char ','
+              n <- numero
+              char ')'
+              return fuctionVectoriano FromIntegral (inicio) FromIntegral (fin) n 
+              
+String -> [(a, String)]
+
+7. Escribir un parser para listas heterogeneas de enteros y caracteres. Definir un tipo de datos
+en haskell adecuado para representarlas. Ejemplo [3, ’z’, ’r’, 7, 9, 22, ’1’]
+
+data Elem = I Int | C Char
+
+type Lista = [Elem]
+
+pInt :: Parser Elem
+pInt = do x <- numero
+          return (I x)
+
+pChar :: Parser Elem 
+pChar = do char '''
+           x <- char
+           char '''
+           return (C x)
+
+pElem :: Parser Elem
+pElem = pChar <|> pInt 
+
+parserLista :: Parser Lista 
+parserLista = do char '['
+                 x <- pElem
+                 p <- many (do char ','
+                               pElem)
+                 char ']'
+                 return (x:xs)
+              <|> do char '['
+                     char ']'
+                     return []
+
+
+8. Modificar el parser de expresiones visto en clase para usar tambien la resta y la division,
+basandose en la siguiente gramatica
+
+expr → term (’+’ expr | ’-’ expr | emptyS)
+term → factor (’*’ term | ’/’ term | emptyS)
+factor → Num | '(' expr ')'
+
+y para que en lugar de evaluar una expresion genere un arbol de sintaxis abstracta dado por el
+tipo:
+
+data Expr = Num Int | BinOp Op Expr Expr
+data Op = Add | Mul | Res | Div
+
+
+
+parserExpr :: Parser Expr
+parserExpr = do t <- parserTerm
+                do char '+'
+                   x <- parserExpr
+                   return (BinOp Add t x) 
+                <|> do char '-'
+                       y <- parserExpr
+                       return (BinOp Res t y)
+                    <|> return t
+  
+parserTerm :: Parser Expr 
+parserTerm = do f <- parserFactor
+                do char '*'
+                   x <- parserTerm 
+                   return (BinOp Mul f x)
+                <|> do char '/' 
+                       y <- parserTerm
+                       return (BinOp Div f y)
+                    <|> return f
+
+parserFactor :: Parser Expr        
+parserFactor = do n <- nat
+                  return Num n
+               <|> do char '('
+                      e <- parserExpr
+                      char ')'
+                      return e
+
+eval :: String -> Expr
+eval s = fst (head (parserExpr s))
+
+
+9. Eliminar recursion izquierda e implementar el parser para la gramatica resultante.
+expr → expr (’+’ term | ’-’ term) | term
+term → term (’*’ factor | ’/’ factor ) | factor
+factor → digit | ’(’ expr ’)’
+digit → ’0’ | ’1’ | ’2’ | ... | ’9’
+
+expr -> expr (’+’ term | ’-’ term) | term 
+A    ->  A             a           |   b
+
+term → term (’*’ factor | ’/’ factor ) | factor
+A   ->  A               a              |    b
+
+A -> b A'
+A' -> e | a A'
+
+  A  ->  A           a          b
+resto → resto ’sigue’ resto | ’valor’
+
+resto -> 'valor' resto'
+resto' -> e | 'sigue' resto resto'
+
+expr -> term expr'
+expr' -> e | (’+’ term | ’-’ term) expr' 
+
+term -> factor term'
+term' -> e | (’*’ factor | ’/’ factor ) term'
+
+
+expr -> term expr'
+expr' -> e | (’+’ term | ’-’ term) expr' 
+term -> factor term'
+term' -> e | (’*’ factor | ’/’ factor ) term'
+factor → digit | ’(’ expr' ’)’
+digit → ’0’ | ’1’ | ’2’ | ... | ’9’
+
+parserExpr :: Parser Expr
+parserExpr = do t <- parserTerm          (5 - 5 + 8 / 2  + 2 * 1)
+                parserExpr' t
+
+parserExpr' :: Expr -> Parser Expr'
+parserExpr' acc = do char '+'
+                 t <- parserTerm 
+                 parserExpr' (BinOp Add acc t)
+              <|> do char '-'
+                     t <- parserTerm
+                     parserExpr' (BinOp Res acc t)
+                  <|> return acc
+
+parserTerm :: Parser Term 
+parserTerm = do f <- parserFactor
+                parserTerm f
+
+parserTerm' :: Expr -> Parser Term'
+parserTerm' acc = do char '*'
+                     f <- parserFactor
+                     parserTerm' (BinOp Mul acc f)
+              <|> do char '/'
+                     f <- parserFactor
+                     parserTerm' (BinOp Div acc f)
+                   <|> return acc
+
+parserFactor :: Parser Expr
+parserFactor = parserDigit
+               <|> do char '('
+                      e <- parserExpr'
+                      char ')'
+                      return e
+
+parserDigit :: Parser Expr
+parserDigit = do d <- Integer
+                 return Num d
+
+eval :: String -> Int
+
+
+
+10. Implementar un parser que reconozca matrices definidas con la sintaxis de Scilab/MATLAB,
+donde los elementos de cada fila se separan con comas o espacios y las filas se separan con punto
+y coma. Ejemplo:
+[1 2 3; 4 5 6; 7 8 9].
+Debe producir una lista de listas de n´umeros:
+[[1, 2, 3, 7],
+ [4, 5, 6], 
+ [7, 8, 9]].
+
+matriz -> '[' listas ']' 
+listas -> lista  listas' 
+listas' -> e | ';' lista listas'
+lista -> num lista'
+lista' -> e | ' ' lista |  ',' lista 
+num -> Int
+
+parserMatriz :: Parser Matriz
+parserMatriz = do char '['
+                  x <- parserListas
+                  char ']'
+                  if esunaMatriz x
+                     then return x
+                     else failure
+
+esunaMatriz :: Matriz -> Bool
+esunaMatriz [] = False
+esunaMatriz (xs:xss) = let x = length xs 
+                       in todosMiden x xss
+       where
+              todosMiden :: Int -> [[Int]] -> Bool
+              todosMiden l [] = True
+              todosMiden l (x:xs) = if l == length x
+                                      then todosMiden l xs
+                                      else False 
+
+parserListas :: Parser [[Int]]
+parserListas = do x <- parserLista
+                  r <- many(do char ';'
+                               parserLista)
+                  return x : r
+
+parserLista :: Parser [Int]
+parserLista = do p <- Int
+                 r <- many (do space <|> char ','
+                               Int)
+                  return p : r
+
+
+
+1 2 3; 4 5 6; 7 8 9
+
+parserNum :: Parser Num
+parserNum = Integer
+
+eval :: String -> [[Int]]
+
+
+
+11. Implementar un parser para expresiones booleanas con los operadores logicos and, or , not y
+parentesis. Ejemplo:
+not (True or False and True).
+Debe generar un AST:
+data BoolExpr = BVal Bool
+| Not BoolExpr
+| And BoolExpr BoolExpr
+| Or BoolExpr BoolExpr
+
+parser :: Parser Bool
+parser = do 
