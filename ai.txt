@@ -430,5 +430,44 @@ data BoolExpr = BVal Bool
 | And BoolExpr BoolExpr
 | Or BoolExpr BoolExpr
 
-parser :: Parser Bool
-parser = do 
+expr   -> term  ('or'  term)*     
+term   -> factor ('and' factor)*
+factor -> 'not' factor | atom       
+atom   -> 'True' | 'False' | '(' expr ')'
+
+
+
+parserExpr :: Parser BoolExpr  
+parserExpr = do t <- parserTerm
+                ts <- many (do spaces
+                               string "or"
+                               spaces
+                               parserTerm)
+                return (foldl Or t ts)
+
+parserTerm :: Parser BoolExpr  
+parserTerm = do t <- parserFactor
+                ts <- many (do spaces
+                               string "and"
+                               spaces
+                               parserFactor)
+                return (foldl And t ts)
+
+parserFactor :: Parser BoolExpr  
+parserFactor = do string "not"
+                  spaces
+                  f <- parserFactor
+                  return (Not f)
+               <|> do parserAtom
+
+parserAtom :: Parser BoolExpr
+parserAtom = do string "True"
+                return (BVal True)
+             <|> do string "False"
+                    return (BVal False)
+             <|> do char '('
+                    spaces
+                    e <- parserExpr
+                    spaces
+                    char ')'
+                    return e
